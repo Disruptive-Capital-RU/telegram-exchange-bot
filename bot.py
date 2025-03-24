@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 import requests
 from bs4 import BeautifulSoup
 
+import requests
+from bs4 import BeautifulSoup
+
 def get_best_exchange_rates():
     headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -37,17 +40,17 @@ def get_best_exchange_rates():
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Extracting bank names
+        # Extract bank names
         bank_names = [bank.text.strip() for bank in soup.find_all("div", class_="Text__sc-vycpdy-0 OiTuY")]
 
-        # Extracting buy and sell rates
+        # Extract buy & sell rates
         all_rates = [rate.text.strip() for rate in soup.find_all("div", class_="Text__sc-vycpdy-0 cQqMIr") if "₽" in rate.text]
 
         if len(bank_names) == 0 or len(all_rates) < 2 * len(bank_names):
             results += f"\n⚠️ No valid {currency} exchange rates found.\n"
             continue
 
-        # Pairing banks with their buy and sell rates
+        # Properly pair banks with their buy and sell rates
         exchange_data = []
         for i in range(len(bank_names)):
             bank = bank_names[i]
@@ -64,9 +67,6 @@ def get_best_exchange_rates():
             results += f"{bank}: Buy {buy_rate} ₽ | Sell {sell_rate} ₽\n"
 
     return results
-
-
-
 
 # Command to fetch and send exchange rates
 async def send_exchange_rates(update: Update, context: CallbackContext):
