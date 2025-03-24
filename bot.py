@@ -19,43 +19,52 @@ from bs4 import BeautifulSoup
 
 def get_best_exchange_rates():
     headers = {"User-Agent": "Mozilla/5.0"}
-    
+
     # URLs for USD and EUR exchange rates in Moscow
     urls = {
         "USD": "https://www.banki.ru/products/currency/cash/usd/moskva/",
         "EUR": "https://www.banki.ru/products/currency/cash/eur/moskva/"
     }
 
-    results = "\n💰 **Top 7 Buy Rates in Moscow:**\n"
+    results = "\n💰 **Best Exchange Rates in Moscow:**\n"
 
     for currency, url in urls.items():
         response = requests.get(url, headers=headers)
-        
+
         if response.status_code != 200:
             results += f"\n⚠️ Error fetching {currency} rates.\n"
             continue
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Find all bank names
+        # Extracting bank names
         bank_names = [bank.text.strip() for bank in soup.find_all("div", class_="Text__sc-vycpdy-0 OiTuY")]
 
-        # Find all buy rates (some numbers might be misplaced, so we take only valid rates)
-        buy_rates = [rate.text.strip() for rate in soup.find_all("div", class_="Text__sc-vycpdy-0 cQqMIr") if "₽" in rate.text]
+        # Extracting buy and sell rates
+        all_rates = [rate.text.strip() for rate in soup.find_all("div", class_="Text__sc-vycpdy-0 cQqMIr") if "₽" in rate.text]
 
-        if len(bank_names) == 0 or len(buy_rates) == 0:
-            results += f"\n⚠️ No {currency} exchange rates found.\n"
+        if len(bank_names) == 0 or len(all_rates) < 2 * len(bank_names):
+            results += f"\n⚠️ No valid {currency} exchange rates found.\n"
             continue
 
-        # Pair banks with buy rates and sort them in descending order
-        exchange_data = sorted(zip(bank_names, buy_rates), key=lambda x: float(x[1].replace(",", ".")), reverse=True)
+        # Pairing banks with their buy and sell rates
+        exchange_data = []
+        for i in range(len(bank_names)):
+            bank = bank_names[i]
+            buy_rate = all_rates[i * 2]  # Every first rate is Buy
+            sell_rate = all_rates[i * 2 + 1]  # Every second rate is Sell
+            exchange_data.append((bank, buy_rate, sell_rate))
 
-        # Get the top 7 best buy rates
+        # Sort by highest buy rate
+        exchange_data = sorted(exchange_data, key=lambda x: float(x[1].replace(",", ".")), reverse=True)
+
+        # Get the top 7 buy rates
         results += f"\n🔹 **Top 7 Buy Rates for {currency}:**\n"
-        for i, (bank, rate) in enumerate(exchange_data[:7]):
-            results += f"{i+1}. {bank}: Buy {rate} ₽\n"
+        for bank, buy_rate, sell_rate in exchange_data[:7]:
+            results += f"{bank}: Buy {buy_rate} ₽ | Sell {sell_rate} ₽\n"
 
     return results
+
 
 
 
