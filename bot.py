@@ -14,44 +14,59 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Function to scrape exchange rates from Banki.ru
-def get_exchange_rates():
-    url = "https://www.banki.ru/products/currency/"
+import requests
+from bs4 import BeautifulSoup
+
+def get_best_exchange_rates():
     headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
+    
+    # URLs for USD and EUR exchange rates in Moscow
+    urls = {
+        "USD": "https://www.banki.ru/products/currency/cash/usd/moskva/",
+        "EUR": "https://www.banki.ru/products/currency/cash/eur/moskva/"
+    }
 
-    if response.status_code != 200:
-        return "Error fetching exchange rates. Try again later."
+    results = "\n💰 **Top 7 Buy Rates in Moscow:**\n"
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    for currency, url in urls.items():
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 200:
+            results += f"\n⚠️ Error fetching {currency} rates.\n"
+            continue
 
-    # Known list of major currencies in the order they appear on Banki.ru
-    known_currencies = ["USD", "EUR", "GBP", "CNY"]  # Add more if needed
+        soup = BeautifulSoup(response.text, "html.parser")
 
-    # Extract exchange rates
-    rate_divs = soup.find_all("div", class_="Text__sc-vycpdy-0 cQqMIr")
+        # Find all bank names
+        bank_names = [bank.text.strip() for bank in soup.find_all("div", class_="Text__sc-vycpdy-0 OiTuY")]
 
-    if not rate_divs or len(rate_divs) < len(known_currencies) * 2:
-        return "Failed to extract exchange rate data."
+        # Find all buy rates (some numbers might be misplaced, so we take only valid rates)
+        buy_rates = [rate.text.strip() for rate in soup.find_all("div", class_="Text__sc-vycpdy-0 cQqMIr") if "₽" in rate.text]
 
-    rates = "\n💰 **Daily Exchange Rates:**\n"
+        if len(bank_names) == 0 or len(buy_rates) == 0:
+            results += f"\n⚠️ No {currency} exchange rates found.\n"
+            continue
 
-    # Iterate through rates and assign to known currencies
-    for i in range(len(known_currencies)):
-        currency = known_currencies[i]
-        buy_rate = rate_divs[i * 2].text.strip()
-        sell_rate = rate_divs[i * 2 + 1].text.strip()
-        rates += f"{currency}: Buy {buy_rate} | Sell {sell_rate}\n"
+        # Pair banks with buy rates and sort them in descending order
+        exchange_data = sorted(zip(bank_names, buy_rates), key=lambda x: float(x[1].replace(",", ".")), reverse=True)
 
-    return rates
+        # Get the top 7 best buy rates
+        results += f"\n🔹 **Top 7 Buy Rates for {currency}:**\n"
+        for i, (bank, rate) in enumerate(exchange_data[:7]):
+            results += f"{i+1}. {bank}: Buy {rate} ₽\n"
+
+    return results
+
+
 
 # Command to fetch and send exchange rates
 async def send_exchange_rates(update: Update, context: CallbackContext):
-    rates = get_exchange_rates()
+    rates = get_best_exchange_rates()
     await update.message.reply_text(rates, parse_mode='Markdown')
 
 # Scheduled function to send daily updates
 async def daily_update(app):
-    rates = get_exchange_rates()
+    rates = get_best_exchange_rates()
     await app.bot.send_message(chat_id=CHAT_ID, text=rates, parse_mode='Markdown')
 
 # Main function to start the bot
